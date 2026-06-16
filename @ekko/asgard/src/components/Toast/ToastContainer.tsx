@@ -1,7 +1,9 @@
 import React from 'react';
 import { useToast } from './ToastContext';
 import type { ToastPosition } from './ToastContext';
-import type { Toast } from './Toast';
+// NOTE: value import — `Toast` is used as a component (<Toast/>) below. A `import type` here erases it at
+// runtime, leaving `Toast` undefined and crashing hydration the moment a toast renders.
+import { Toast } from './Toast';
 
 export const ToastContainer: React.FC = () => {
   const { toasts, hideToast } = useToast();
