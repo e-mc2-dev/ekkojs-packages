@@ -23,6 +23,13 @@ function rawToString(bytes: Uint8Array): string {
 }
 
   // ── ingest a caught message ──
+// A short, single-line preview for the inbox list: prefer the text body, else strip tags from the HTML.
+function makeSnippet(text: string, html: string): string {
+  let s = text || "";
+  if (!s && html) s = html.replace(/<[^>]*>/g, " ");
+  return s.replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
 export function storeCaught(msg: CaughtMessage): void {
   const p   = parseMessage(msg.raw);
   const id  = uid();
@@ -40,6 +47,7 @@ export function storeCaught(msg: CaughtMessage): void {
     seen         : 0,
     text_body    : p.text,
     html_body    : p.html,
+    snippet      : makeSnippet(p.text, p.html),
     has_html     : p.html ? 1                                         : 0,
     attach_count : p.attachments.length,
     raw          : rawToString(msg.raw),
@@ -61,7 +69,7 @@ export function storeCaught(msg: CaughtMessage): void {
 // ── queries ──
 export function listMessages(): any[] {
   return db.from(Messages)
-    .select("id", "from_addr", "envelope_to", "subject", "date_received", "size", "seen", "attach_count", "has_html")
+    .select("id", "from_addr", "envelope_to", "subject", "snippet", "date_received", "size", "seen", "attach_count", "has_html")
     .orderByDesc("date_received").toArray();
 }
 export function getMessage(id: string): any | null {

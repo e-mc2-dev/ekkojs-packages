@@ -55,16 +55,19 @@ function decodeBase64(data: string): Uint8Array {
 }
 function decodeQP(s: string): Uint8Array {
   s = s.replace(/=\r?\n/g, ""); // soft line breaks
-  const out: number[] = [];
+  // Write straight into a right-sized buffer (QP output is never longer than its input) instead of a
+  // number[] that would balloon to ~8x the byte size on a large attachment.
+  const out = new Uint8Array(s.length);
+  let n = 0;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
     if (c === "=" && i + 2 < s.length) {
       const hex = s.substr(i + 1, 2);
-      if (/^[0-9A-Fa-f]{2}$/.test(hex)) { out.push(parseInt(hex, 16)); i += 2; continue; }
+      if (/^[0-9A-Fa-f]{2}$/.test(hex)) { out[n++] = parseInt(hex, 16); i += 2; continue; }
     }
-    out.push(s.charCodeAt(i) & 0xff);
+    out[n++] = s.charCodeAt(i) & 0xff;
   }
-  return Uint8Array.from(out);
+  return out.subarray(0, n);
 }
 
 // ── header parsing ──
@@ -115,7 +118,10 @@ function splitAddresses(v: string): string[] {
 }
 
 // ── recursive part walk ──
-function walkPart(bin: string, result: ParsedMail) {
+// `depth` is bounded so a maliciously (or accidentally) deep multipart nest can't overflow the stack.
+const MAX_MULTIPART_DEPTH = 24;
+function walkPart(bin: string, result: ParsedMail, depth = 0) {
+  if (depth > MAX_MULTIPART_DEPTH) return;
   const [headerBlock, body] = splitHeaderBody(bin);
   const headers = parseHeaders(headerBlock);
   const ctRaw = headers["content-type"] || "text/plain";
@@ -132,7 +138,7 @@ function walkPart(bin: string, result: ParsedMail) {
       let seg = segments[i];
       if (seg.startsWith("--")) break;           // closing boundary "--boundary--"
       seg = seg.replace(/^\r?\n/, "").replace(/\r?\n$/, "");
-      walkPart(seg, result);
+      walkPart(seg, result, depth + 1);
     }
     return;
   }

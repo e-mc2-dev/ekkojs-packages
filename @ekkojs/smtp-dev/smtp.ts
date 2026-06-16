@@ -12,6 +12,11 @@ export interface CaughtMessage {
 
 type OnMessage = (msg: CaughtMessage) => void;
 
+// Hard cap on a single message (raw DATA). Bounds the synchronous parse + the in-memory store so one
+// huge attachment can't freeze the event loop (blocking the webmail + Ctrl+C) or exhaust memory.
+const MAX_MESSAGE_BYTES = 26214400; // 25 MiB
+const DATA_TERM = "\r\n.\r\n";
+
 function bytesToBinary(arr: number[]): string {
   let s = "";
   const CHUNK = 0x8000;
@@ -71,10 +76,11 @@ export class SmtpServer {
     let from = "";
     let recipients: string[] = [];
     let dataBuf = "";
+    let tooBig = false;
 
     send(`220 ${this.banner} ESMTP ready`);
 
-    const resetTxn = () => { from = ""; recipients = []; dataBuf = ""; inData = false; };
+    const resetTxn = () => { from = ""; recipients = []; dataBuf = ""; inData = false; tooBig = false; };
 
     while (true) {
       let chunk: number[];
@@ -87,11 +93,25 @@ export class SmtpServer {
       // eslint-disable-next-line no-constant-condition
       while (true) {
         if (inData) {
-          const term = buffer.indexOf("\r\n.\r\n");
-          if (term < 0) { dataBuf += buffer; buffer = ""; break; }
-          dataBuf += buffer.slice(0, term);
-          buffer = buffer.slice(term + 5);
+          const term = buffer.indexOf(DATA_TERM);
+          if (term < 0) {
+            // Terminator not here yet. Move all but the last few bytes into dataBuf and KEEP a tail in
+            // buffer, so a CRLF.CRLF that straddles two TCP reads is still detected on the next pass.
+            // (Without this the terminator is lost mid-stream and the message never completes — the
+            // classic "big attachment hangs the inbox" bug.)
+            const keep = DATA_TERM.length - 1;
+            if (buffer.length > keep) {
+              const take = buffer.length - keep;
+              if (!tooBig && dataBuf.length + take > MAX_MESSAGE_BYTES) tooBig = true; // stop accumulating
+              if (!tooBig) dataBuf += buffer.slice(0, take);
+              buffer = buffer.slice(take);
+            }
+            break;
+          }
+          if (!tooBig) dataBuf += buffer.slice(0, term);
+          buffer = buffer.slice(term + DATA_TERM.length);
           inData = false;
+          if (tooBig) { send("552 5.3.4 Message exceeds the 25 MiB limit"); resetTxn(); continue; }
           // dot-unstuff: lines that began with ".." → "."
           const unstuffed = dataBuf.replace(/\r\n\.\./g, "\r\n.").replace(/^\.\./, ".");
           const raw = binaryToBytes(unstuffed);
@@ -113,7 +133,7 @@ export class SmtpServer {
 
         if (verb === "EHLO") {
           send(`250-${this.banner} greets ${arg || "you"}`);
-          send("250-SIZE 52428800");
+          send(`250-SIZE ${MAX_MESSAGE_BYTES}`);
           send("250-8BITMIME");
           send("250 HELP");
         } else if (verb === "HELO") {
@@ -170,9 +190,18 @@ export async function deliverLocal(
     await cmd(`MAIL FROM:<${from}>`);
     for (const r of recipients) await cmd(`RCPT TO:<${r}>`);
     await cmd("DATA");                       // 354
-    // dot-stuff lines beginning with "."
-    const stuffed = raw.replace(/\r\n\./g, "\r\n..");
-    tcp.write(conn, stuffed + "\r\n.\r\n");
+    // dot-stuff lines beginning with "." and append the end-of-DATA terminator.
+    const payload = raw.replace(/\r\n\./g, "\r\n..") + "\r\n.\r\n";
+    // Write in modest chunks, yielding between them. `tcp.write` is synchronous fire-and-forget, so a
+    // single multi-hundred-KB write would block this single-threaded event loop against the in-process
+    // catch-all reader once the loopback socket buffer fills — a deadlock that froze the whole app
+    // (webmail + Ctrl+C) whenever a sizeable attachment was composed. Chunk + yield lets the server
+    // drain the socket between writes.
+    const CHUNK = 16384;
+    for (let i = 0; i < payload.length; i += CHUNK) {
+      tcp.write(conn, payload.slice(i, i + CHUNK));
+      await new Promise((r) => setTimeout(r, 0));
+    }
     await readLine();                        // 250 queued
     await cmd("QUIT");
   } finally {

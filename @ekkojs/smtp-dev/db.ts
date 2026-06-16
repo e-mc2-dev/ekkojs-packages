@@ -19,6 +19,7 @@ export const Messages = defineTable("messages", {
   seen:          col.int().default(0),          // 0 = unread, 1 = read
   text_body:     col.text().default(""),
   html_body:     col.text().default(""),
+  snippet:       col.text().default(""),        // short preview line for the inbox list
   has_html:      col.int().default(0),
   attach_count:  col.int().default(0),
   raw:           col.text().default(""),        // full RFC822 wire message

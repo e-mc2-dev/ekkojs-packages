@@ -34,7 +34,7 @@
     "@ekko/react-dom": "19.0.0"
   },
   "type": "run",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A local email server with webmail for testing. Capture every message your app sends and read it in your browser, nothing is delivered for real.",
   "readme": "README.md",
   "license": "MIT",
