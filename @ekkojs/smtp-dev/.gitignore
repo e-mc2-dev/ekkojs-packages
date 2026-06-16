@@ -1,0 +1,10 @@
+.ekko/
+dist/
+node_modules/
+stdout.txt
+stderr.txt
+__jsx.js
+__mimir.js
+__router.js
+_run.log
+_run.pid

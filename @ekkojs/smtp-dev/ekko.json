@@ -1,0 +1,45 @@
+{
+  "entry": "server.tsx",
+  "imports": {
+    "react": "@ekko/react",
+    "react-dom": "@ekko/react-dom",
+    "react-dom/client": "@ekko/react-dom/client",
+    "react-dom/server": "@ekko/react-dom/server",
+    "react/jsx-runtime": "@ekko/react/jsx-runtime"
+  },
+  "name": "@ekkojs/smtp-dev",
+  "package": {
+    "exclude": [
+      "stdout.txt",
+      "stderr.txt"
+    ],
+    "include": [
+      "pages/**/*",
+      "components/**/*",
+      "atoms/**/*",
+      "lib/**/*",
+      "handlers/**/*",
+      "styles/**/*",
+      "static/**/*",
+      ".ekko/build/**/*"
+    ]
+  },
+  "permissions": {
+    "env": true,
+    "net": true
+  },
+  "ship": {
+    "@ekko/asgard": "1.0.0",
+    "@ekko/react": "19.0.0",
+    "@ekko/react-dom": "19.0.0"
+  },
+  "type": "run",
+  "version": "1.0.1",
+  "description": "A local email server with webmail for testing. Capture every message your app sends and read it in your browser, nothing is delivered for real.",
+  "readme": "README.md",
+  "license": "MIT",
+  "author": "Francois Skorzec",
+  "repository": "https://github.com/e-mc2-dev/ekkojs",
+  "bugs": "https://github.com/e-mc2-dev/ekkojs/issues",
+  "homepage": "https://ekkojs.com"
+}

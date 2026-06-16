@@ -1,0 +1,26 @@
+{
+  "name": "@ekko/mongodb",
+  "version": "1.0.0",
+  "type": "lib",
+  "entry": "src/index.ts",
+  "exports": {
+    ".": "src/index.ts"
+  },
+  "description": "Work with MongoDB from EkkoJS, query collections, manage documents, and run aggregations, with optional ekko:orm support.",
+  "readme": "README.md",
+  "license": "MIT",
+  "author": "EkkoJS",
+  "repository": "https://github.com/e-mc2-dev/ekkojs",
+  "bugs": "https://github.com/e-mc2-dev/ekkojs/issues",
+  "homepage": "https://ekkojs.com",
+  "keywords": ["mongodb", "mongo", "database", "nosql", "document", "orm", "ekko"],
+  "categories": ["database"],
+  "native": {
+    "_": {
+      "windows-x64": "native/windows-x64/ekko_mongodb.dll",
+      "linux-x64": "native/linux-x64/libekko_mongodb.so",
+      "linux-arm64": "native/linux-arm64/libekko_mongodb.so",
+      "macos-arm64": "native/macos-arm64/libekko_mongodb.dylib"
+    }
+  }
+}

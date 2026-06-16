@@ -1,0 +1,32 @@
+{
+  "name": "@ekko/asgard",
+  "version": "1.0.0",
+  "type": "lib",
+  "entry": "src/index.ts",
+  "exports": {
+    ".": "src/index.ts",
+    "./theme": "src/theme/index.ts"
+  },
+  "ship": {
+    "@ekko/react": "^19.0.0",
+    "@ekko/react-dom": "^19.0.0"
+  },
+  "peer": {
+    "@ekko/react": "*",
+    "@ekko/react-dom": "*"
+  },
+  "imports": {
+    "react": "@ekko/react",
+    "react/jsx-runtime": "@ekko/react/jsx-runtime",
+    "react-dom": "@ekko/react-dom",
+    "react-dom/client": "@ekko/react-dom/client",
+    "react-dom/server": "@ekko/react-dom/server"
+  },
+  "description": "The official EkkoJS UI library: accessible, themeable React components for building app interfaces.",
+  "readme": "README.md",
+  "license": "MIT",
+  "author": "EkkoJS",
+  "repository": "https://github.com/e-mc2-dev/ekkojs",
+  "bugs": "https://github.com/e-mc2-dev/ekkojs/issues",
+  "homepage": "https://ekkojs.com"
+}

@@ -1,0 +1,81 @@
+# @ekko/asgard
+
+> The official EkkoJS UI component suite: ~36 React component groups (forms, layout, data, overlays, an editor/rich set with a Markdown renderer and a Monarch-tokenizer code viewer, and a VS Code-like dock system), a 25-theme design system, and a security/SSR-safety spine. Built on `@ekko/react`, inline-styled via `useTheme()` (no CSS build), and hardened to render server-side under `ekko:rune` and hydrate without mismatch.
+
+`@ekko/asgard` is an EkkoJS library package (`type: "lib"`, ships `.tsx`/`.ts` source — `ekko`/SWC compiles it). It is consumed by `ekko:rune` apps. Components are styled entirely with inline styles driven by `useTheme()`, which makes them SSR-perfect (styles serialize into the HTML; no stylesheet to ship). Every component is SSR-safe: nothing touches `document`/`window`/`localStorage` during module-load or render (only in `useEffect`/handlers), ids are deterministic (`useId`-based, never `Math.random()`/`Date.now()`), and portals are guarded. `SpreadsheetHTML` is intentionally excluded.
+
+## Setup (required to consume)
+
+A consuming rune app must (1) `ship` Asgard + its React peers, (2) map the npm specifiers to the `@ekko/*` packages so Asgard's `import … from "react"` resolves to the one shared React instance, and (3) activate React SSR.
+
+- [README](README.md): full install/consume guide, peer requirements, and the SSR-activation imports.
+- App `ekko.json`: `"ship": { "@ekko/asgard": "^1.0.0", "@ekko/react": "^19.0.0", "@ekko/react-dom": "^19.0.0" }` and `"imports": { "react": "@ekko/react", "react/jsx-runtime": "@ekko/react/jsx-runtime", "react-dom": "@ekko/react-dom", "react-dom/client": "@ekko/react-dom/client", "react-dom/server": "@ekko/react-dom/server" }`.
+- `server.tsx`: `import "@ekko/react";` then `import "@ekko/react-dom/server";` (registers React's `renderToString` as the rune SSR renderer), then wrap the app in `<ThemeProvider>`.
+- [Package manifest](ekko.json): exports `.` (barrel) and `./theme`.
+
+## Theme & responsive
+
+- [ThemeProvider / useTheme](src/theme/ThemeContext.tsx): SSR-safe provider (reads `localStorage` only in `useEffect`; deterministic default on the server). `useTheme()` returns `{ theme, themeName, setTheme, setThemeName }`.
+- [Themes (25)](src/theme/themes/index.ts): dark, light, dracula, monokai, nord, onedark, tokyoNight, github(Dark/Light), gruvbox, solarized, catppuccin, everforest, material, rosePine, ayu, palenight, arctic, ubuntu, linuxMint, and more.
+- [Responsive hooks](src/hooks/index.ts): `useBreakpoint`, `useMediaQuery`, `withMediaQuery` — SSR-guarded (`typeof window` checks).
+
+## Components — inputs & forms
+
+- [Button](src/components/Button/Button.tsx): variants (filled/outlined/ghost/link), semantic types, sizes, icons, loading; `IconButton`, `ToggleButton`, `ButtonGroup`.
+- [TextBox](src/components/TextBox/TextBox.tsx): text input with validation, icons, and multiple variants.
+- [Checkbox](src/components/Checkbox/Checkbox.tsx): checkbox with groups, indeterminate state, icon variants (`CheckboxGroup`).
+- [Radio](src/components/Radio/Radio.tsx): radio buttons with groups and custom styling (`RadioGroup`).
+- [Switch](src/components/Switch/Switch.tsx): toggle switches with groups and label positioning (`SwitchGroup`).
+- [Slider](src/components/Slider/Slider.tsx): numeric value selection with range support.
+- [Select](src/components/Select/Select.tsx): dropdown with search, multi-select, and groups.
+- [ColorPicker](src/components/ColorPicker/ColorPicker.tsx): color picker with canvas, hue/opacity sliders, swatches, formats; EyeDropper guarded for SSR.
+- [ImageCropper](src/components/UI/ImageCropper/ImageCropper.tsx): image cropping with aspect-ratio constraints.
+- [Upload](src/components/Upload/index.ts): file upload with drag-and-drop zone and file list (preview URLs sanitized).
+
+## Components — display & data
+
+- [Typography](src/components/Typography/Typography.tsx): headings, body text, and formatting.
+- [Card](src/components/Card/Card.tsx): `Card` + `CardHeader`/`CardContent`/`CardActions`/`CardMedia` (media URLs scheme-allowlisted).
+- [Accordion](src/components/Accordion/Accordion.tsx): collapsible panels (`AccordionGroup`).
+- [Alert](src/components/Alert/Alert.tsx): contextual banners with severity levels and variants.
+- [Stepper](src/components/Stepper/Stepper.tsx): step-by-step progress indicator.
+- [DataTable](src/components/DataTable/DataTable.tsx): sorting, filtering, pagination, selection, column config.
+- [TreeView](src/components/TreeView/TreeView.tsx): hierarchical expand/collapse tree.
+- [ProgressBar](src/components/ProgressBar/LinearProgress.tsx): `LinearProgress` + `CircularProgress` (deterministic gradient ids).
+
+## Components — editor & rich
+
+- [MarkdownRenderer](src/components/MarkdownRenderer/MarkdownRenderer.tsx): theme-aware markdown rendering; href/img scheme-allowlisted (no `javascript:`/`data:`), parser recursion-depth-bounded (no stack-overflow DoS).
+- [SyntaxColor](src/components/SyntaxColor/SyntaxColor.tsx): Monarch-tokenizer code viewer with line numbers, folding, diff, minimap, outline; SVG attributes escaped.
+- [DateTime](src/components/DateTime/Calendar.tsx): `Calendar`, `TimePicker`, `CircularTimePicker`, `DateTimeInput` (deterministic ids).
+
+## Components — overlays & containers
+
+- [Tooltip](src/components/Tooltip.tsx): positioned tooltip; renders its child on the server, opens client-side.
+- [ContextMenu](src/components/ContextMenu.tsx): submenus, shortcuts, checkmarks (positioning in effects only).
+- [Drawer](src/components/Drawer/Drawer.tsx): sliding drawer panel from any edge.
+- [FloatingPanel](src/components/FloatingPanel/FloatingPanel.tsx): panel anchored to elements; SSR-guarded portal.
+- [FloatingWindow](src/components/FloatingWindow/FloatingWindow.tsx): draggable/resizable window; SSR-guarded portal.
+- [Popups](src/components/Popups/index.ts): modal popups and prompt dialogs.
+- [Toast](src/components/Toast/ToastContext.tsx): `ToastProvider` + `useToast`; positioned notifications, stable ids.
+- [FeatureTour](src/components/FeatureTour/FeatureTour.tsx): guided tour with tooltips/overlays; SSR-guarded portal.
+- [SDiv](src/components/SDiv/SDiv.tsx): styled div with theme-aware scrollbars (`forwardRef`, deterministic id).
+
+## Components — navigation & layout
+
+- [Grid](src/components/Layout/Grid/Grid.tsx): responsive 12-column grid (container/item).
+- [Splitter](src/components/Layout/Splitter/Splitter.tsx): resizable split-pane layout.
+- [Breadcrumb](src/components/Breadcrumb/Breadcrumb.tsx): navigation trail; navigation targets scheme-allowlisted.
+- [Toolbar](src/components/Toolbar/Toolbar.tsx): icon buttons, toggles, grouped controls.
+- [Ribbon](src/components/Ribbon/Ribbon.tsx): Office-style ribbon — `RibbonTab`/`RibbonGroup`/`RibbonButton`/`RibbonDropdown`/`RibbonToggleButton`/`RibbonSplitButton`.
+
+## Components — dock system
+
+- [DockHost](src/dock/DockHost.tsx): VS Code-like dock layout — tabs, splits, sidebars (provides `DragDropProvider` internally).
+- [Dock parts](src/dock/index.ts): `TabHost`, `SplitContainer`, `VerticalPane`, `SideBar`, `CollapsiblePanel`, `DragDropProvider`/`useDragDrop` (TabHost requires a `DragDropProvider` ancestor).
+
+## Optional
+
+- [Security spine](src/_internal/index.ts): `safeUrl`, `safeCssUrl`, `escapeSvgAttr`, `useSsrId`, `SsrPortal`, `isBrowser`, `mdGuard` — the centralized utilities every component uses for URL allowlisting, SVG/CSS escaping, deterministic ids, and SSR-safe portals.
+- [SSR + security tests](tests/): `foundation`, `primitives`, `layout`, `overlays-editor` (incl. XSS + markdown recursion-bomb regressions), `dock` — 41 assertions, all rendered through the `@ekko/react-dom/server` (rune) SSR path.
+- [Barrel](src/components/index.ts) and [main entry](src/index.ts): every export re-exported from `@ekko/asgard`.

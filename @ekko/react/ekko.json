@@ -1,0 +1,16 @@
+{
+  "name": "@ekko/react",
+  "version": "19.0.0",
+  "type": "lib",
+  "exports": {
+    ".": "src/react.js",
+    "./jsx-runtime": "src/jsx-runtime.js"
+  },
+  "description": "React 19 for EkkoJS. Build component-based UIs with the React API you already know.",
+  "readme": "README.md",
+  "license": "MIT",
+  "author": "EkkoJS",
+  "repository": "https://github.com/e-mc2-dev/ekkojs",
+  "bugs": "https://github.com/e-mc2-dev/ekkojs/issues",
+  "homepage": "https://ekkojs.com"
+}

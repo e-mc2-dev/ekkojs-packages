@@ -1,0 +1,26 @@
+{
+  "name": "@ekko/mysql",
+  "version": "1.0.0",
+  "type": "lib",
+  "entry": "src/index.ts",
+  "exports": {
+    ".": "src/index.ts"
+  },
+  "description": "Connect to MySQL and MariaDB from EkkoJS, run queries and transactions, with optional ekko:orm support.",
+  "readme": "README.md",
+  "license": "MIT",
+  "author": "EkkoJS",
+  "repository": "https://github.com/e-mc2-dev/ekkojs",
+  "bugs": "https://github.com/e-mc2-dev/ekkojs/issues",
+  "homepage": "https://ekkojs.com",
+  "keywords": ["mysql", "mariadb", "database", "sql", "driver", "orm", "ekko"],
+  "categories": ["database"],
+  "native": {
+    "_": {
+      "windows-x64": "native/windows-x64/EkkoMysql.dll",
+      "linux-x64": "native/linux-x64/EkkoMysql.so",
+      "linux-arm64": "native/linux-arm64/EkkoMysql.so",
+      "macos-arm64": "native/macos-arm64/EkkoMysql.dylib"
+    }
+  }
+}

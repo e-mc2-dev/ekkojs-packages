@@ -1,0 +1,39 @@
+{
+  "packages": {
+    "@ekko/asgard": {
+      "category": "ship",
+      "exports": {
+        ".": "src/index.js",
+        "./theme": "src/theme/index.js"
+      },
+      "integrity": "sha256-37c3e2baa37491a821e939dcba383cc338b4da7800e8cf6d45a2908af8b344d0",
+      "size": 257867,
+      "source": "registry:pkg.ekko.dev",
+      "version": "1.0.0"
+    },
+    "@ekko/react": {
+      "category": "ship",
+      "exports": {
+        ".": "src/react.js",
+        "./jsx-runtime": "src/jsx-runtime.js"
+      },
+      "integrity": "sha256-f523b600731165d0ed24fea40575c3fc6ede45c558de2696cb53b6a55fc3e69e",
+      "size": 4790,
+      "source": "registry:pkg.ekko.dev",
+      "version": "19.0.0"
+    },
+    "@ekko/react-dom": {
+      "category": "ship",
+      "exports": {
+        ".": "src/react-dom.js",
+        "./client": "src/client.js",
+        "./server": "src/server.js"
+      },
+      "integrity": "sha256-b15f99183585c3466118fed1a918cf4a36576e1becda185d1449e66c5746352a",
+      "size": 95145,
+      "source": "registry:pkg.ekko.dev",
+      "version": "19.0.0"
+    }
+  },
+  "version": 2
+}

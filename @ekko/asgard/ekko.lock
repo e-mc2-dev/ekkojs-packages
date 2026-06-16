@@ -1,0 +1,25 @@
+{
+  "packages": {
+    "@ekko/react": {
+      "version": "19.0.0",
+      "integrity": "",
+      "source": "store",
+      "category": "ship",
+      "exports": {
+        ".": "./src/react.js",
+        "./jsx-runtime": "./src/jsx-runtime.js"
+      }
+    },
+    "@ekko/react-dom": {
+      "version": "19.0.0",
+      "integrity": "",
+      "source": "store",
+      "category": "ship",
+      "exports": {
+        ".": "./src/react-dom.js",
+        "./client": "./src/client.js",
+        "./server": "./src/server.js"
+      }
+    }
+  }
+}

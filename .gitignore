@@ -1,0 +1,25 @@
+# EkkoJS build output
+**/.ekko/
+**/dist/
+
+# Dependencies
+**/node_modules/
+
+# Rust / .NET / TypeScript build output
+**/target/
+**/bin/
+**/obj/
+**/build/
+
+# Packed package archives
+*.ekl
+
+# Prebuilt native binaries (rebuilt from each package's native source)
+*.so
+*.dll
+*.dylib
+
+# OS / editor / logs
+.DS_Store
+Thumbs.db
+*.log

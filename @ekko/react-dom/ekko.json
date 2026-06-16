@@ -1,0 +1,20 @@
+{
+  "name": "@ekko/react-dom",
+  "version": "19.0.0",
+  "type": "lib",
+  "peer": {
+    "@ekko/react": "*"
+  },
+  "exports": {
+    ".": "src/react-dom.js",
+    "./client": "src/client.js",
+    "./server": "src/server.js"
+  },
+  "description": "Server-render and hydrate your React 19 app on EkkoJS.",
+  "readme": "README.md",
+  "license": "MIT",
+  "author": "EkkoJS",
+  "repository": "https://github.com/e-mc2-dev/ekkojs",
+  "bugs": "https://github.com/e-mc2-dev/ekkojs/issues",
+  "homepage": "https://ekkojs.com"
+}
