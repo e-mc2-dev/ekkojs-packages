@@ -79,7 +79,7 @@ export default function Settings() {
           <div className="toggle">
             <Switch checked={ssl} disabled={!status?.sslAvailable} onChange={setSsl}
               label="Implicit TLS (SSL)" />
-            {!status?.sslAvailable ? <span className="muted">pending runtime TLS support (task 279)</span> : null}
+            {!status?.sslAvailable ? <span className="muted">(Coming soon)</span> : null}
           </div>
 
           <div className="btn-row">
