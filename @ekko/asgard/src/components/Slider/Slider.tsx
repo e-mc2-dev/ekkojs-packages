@@ -157,12 +157,11 @@ export const Slider: React.FC<SliderProps> = ({
     }
   };
 
-  // Mouse events
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Shared drag-start (mouse + touch): pick the nearest thumb and jump it to the press position
+  const startDrag = (clientX: number, clientY: number) => {
     if (disabled) return;
 
-    e.preventDefault();
-    const thumbIndex = findClosestThumb(e.clientX, e.clientY);
+    const thumbIndex = findClosestThumb(clientX, clientY);
     setActiveThumb(thumbIndex);
 
     if (valueLabelDisplay === 'auto') {
@@ -172,7 +171,7 @@ export const Slider: React.FC<SliderProps> = ({
     }
 
     // Immediately update position
-    const newValue = getValueFromPosition(e.clientX, e.clientY);
+    const newValue = getValueFromPosition(clientX, clientY);
 
     if (isRange) {
       const newValues = [...values];
@@ -193,32 +192,60 @@ export const Slider: React.FC<SliderProps> = ({
     }
   };
 
+  // Mouse events
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (disabled) return;
+    e.preventDefault();
+    startDrag(e.clientX, e.clientY);
+  };
+
+  // Touch events (mobile): swipe to move the value/range
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (disabled) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    startDrag(touch.clientX, touch.clientY);
+  };
+
   useEffect(() => {
     if (activeThumb === null) return;
 
-    const handleMouseMove = (_e: MouseEvent) => {
-      handleMove(_e.clientX, _e.clientY);
-    };
+    const thumbIndex = activeThumb;
 
-    const handleMouseUp = (_e: MouseEvent) => {
-      const thumbIndex = activeThumb;
+    const endDrag = () => {
       setActiveThumb(null);
-
       if (valueLabelDisplay === 'auto') {
         const newLabels = [...showValueLabel];
         newLabels[thumbIndex] = false;
         setShowValueLabel(newLabels);
       }
-
       onChangeCommitted?.(value);
     };
 
+    const handleMouseMove = (_e: MouseEvent) => {
+      handleMove(_e.clientX, _e.clientY);
+    };
+
+    const handleTouchMove = (_e: TouchEvent) => {
+      const touch = _e.touches[0];
+      if (!touch) return;
+      // Prevent the page from scrolling while dragging the slider.
+      _e.preventDefault();
+      handleMove(touch.clientX, touch.clientY);
+    };
+
     document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', endDrag);
+    document.addEventListener('touchcancel', endDrag);
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mouseup', endDrag);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', endDrag);
+      document.removeEventListener('touchcancel', endDrag);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeThumb, min, max, step, orientation, values]);
@@ -254,6 +281,8 @@ export const Slider: React.FC<SliderProps> = ({
     cursor: disabled ? 'not-allowed' : 'pointer',
     paddingTop: orientation === 'horizontal' ? '20px' : '0',
     paddingBottom: orientation === 'horizontal' ? '20px' : '0',
+    // Let the slider own touch gestures so a swipe drags the thumb instead of scrolling the page.
+    touchAction: 'none',
     ...style
   };
 
@@ -389,6 +418,7 @@ export const Slider: React.FC<SliderProps> = ({
       style={containerStyles}
       className={className}
       onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
     >
       <div style={railStyles} />
       <div style={trackStyles} />

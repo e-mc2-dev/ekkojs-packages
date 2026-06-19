@@ -46,6 +46,12 @@ export interface MarkdownRendererProps {
   /** Whether to render code blocks with SyntaxColor (requires language definitions) */
   syntaxHighlight?: boolean;
 
+  /** Show a copy-to-clipboard button on highlighted code blocks. Default false. */
+  codeCopyButton?: boolean;
+
+  /** Open images in a full-screen, zoomable lightbox on click (LinkedIn-style). Default false. */
+  imageLightbox?: boolean;
+
   /** Override token colors for code blocks (merged over the theme defaults, e.g. `{ comment: "#6b8fb5" }`). */
   codeColorMap?: Record<string, string>;
 

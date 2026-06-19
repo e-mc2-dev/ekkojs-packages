@@ -1,5 +1,5 @@
 import { useState, useEffect } from "@ekko/react";
-import { useParams, useRouter } from "ekko:rune/router";
+import { useParams, useRouter, Link } from "ekko:rune/router";
 import { Card, Button, ButtonGroup } from "@ekko/asgard";
 
 function fmtSize(n: number): string {

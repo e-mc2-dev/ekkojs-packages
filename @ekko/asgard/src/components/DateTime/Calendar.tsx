@@ -31,6 +31,10 @@ export interface CalendarProps {
   // Behavior
   selectionMode?: SelectionMode;
   allowHalfDay?: boolean; // Enable half-day selection
+  /** In single/multiple modes, cycle a date's state on each click instead of selecting full + needing a
+   *  double-click: none → half-morning (left) → half-afternoon (right) → full → none. Requires
+   *  allowHalfDay. Range mode keeps its begin/end half-day via rangeHalfDayConfig. Default false. */
+  halfDayClickCycle?: boolean;
   rangeHalfDayConfig?: RangeHalfDayConfig; // Auto-configure half-day for range start/end
   minDate?: Date;
   maxDate?: Date;
@@ -55,6 +59,7 @@ export const Calendar: React.FC<CalendarProps> = ({
   semantic = 'primary',
   selectionMode = 'single',
   allowHalfDay = false,
+  halfDayClickCycle = false,
   rangeHalfDayConfig,
   minDate,
   maxDate,
@@ -77,7 +82,10 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   const value = controlledValue !== undefined ? controlledValue : internalValue;
 
-  // Initialize dateSelections from rangeHalfDayConfig when value changes
+  // Initialize dateSelections from rangeHalfDayConfig when the (2-date) range value changes.
+  // NB: deps use the primitive day-type values, NOT the rangeHalfDayConfig object — a caller that
+  // passes the config inline (new object each render) would otherwise re-run this every render and,
+  // once a range is complete, setDateSelections in a loop.
   useEffect(() => {
     if (rangeHalfDayConfig && allowHalfDay && selectionMode === 'range' && Array.isArray(value) && value.length === 2) {
       const newSelections = new Map<string, DateSelection>();
@@ -97,10 +105,10 @@ export const Calendar: React.FC<CalendarProps> = ({
         });
       }
 
-      console.log('useEffect - Initializing dateSelections from rangeHalfDayConfig:', newSelections);
       setDateSelections(newSelections);
     }
-  }, [value, rangeHalfDayConfig, allowHalfDay, selectionMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, allowHalfDay, selectionMode, rangeHalfDayConfig?.startDayType, rangeHalfDayConfig?.endDayType]);
 
   // Size configurations
   const sizeConfig = {
@@ -218,9 +226,63 @@ export const Calendar: React.FC<CalendarProps> = ({
     return date > start && date < end;
   };
 
+  // Click-cycle a single date's half-day state: none → half-morning → half-afternoon → full → none.
+  // Used in single/multiple modes when halfDayClickCycle is enabled (range keeps rangeHalfDayConfig).
+  const handleHalfDayCycleClick = (date: Date) => {
+    const key = dateToString(date);
+    const selectedNow = isDateSelected(date);
+    const currentType: DayType = (selectedNow && dateSelections.get(key)?.dayType) || 'full';
+
+    let nextSelected = true;
+    let nextType: DayType = 'half-morning';
+    if (!selectedNow) { nextSelected = true; nextType = 'half-morning'; }
+    else if (currentType === 'half-morning') { nextSelected = true; nextType = 'half-afternoon'; }
+    else if (currentType === 'half-afternoon') { nextSelected = true; nextType = 'full'; }
+    else { nextSelected = false; } // was full → deselect (none)
+
+    let newValue: Date | Date[] | undefined;
+    const newSelections = new Map(dateSelections);
+
+    if (selectionMode === 'multiple') {
+      const current = Array.isArray(value) ? [...value] : [];
+      const idx = current.findIndex(d => isSameDay(d, date));
+      if (nextSelected) {
+        if (idx < 0) current.push(date);
+        newSelections.set(key, { date, dayType: nextType });
+      } else {
+        if (idx >= 0) current.splice(idx, 1);
+        newSelections.delete(key);
+      }
+      newValue = current;
+    } else {
+      // single: at most one selected date
+      newSelections.clear();
+      if (nextSelected) {
+        newValue = date;
+        newSelections.set(key, { date, dayType: nextType });
+      } else {
+        newValue = undefined;
+      }
+    }
+
+    if (controlledValue === undefined) {
+      setInternalValue(newValue);
+    }
+    setDateSelections(newSelections);
+
+    const selections: DateSelection[] = Array.from(newSelections.values());
+    onChange?.(newValue ?? null, selections);
+  };
+
   // Handle date selection
   const handleDateClick = (date: Date) => {
     if (isDateDisabled(date)) return;
+
+    // Half-day click-cycle (single/multiple): each click advances the state instead of selecting full.
+    if (halfDayClickCycle && allowHalfDay && (selectionMode === 'single' || selectionMode === 'multiple')) {
+      handleHalfDayCycleClick(date);
+      return;
+    }
 
     let newValue: Date | Date[];
     let rangeCompleted = false;
@@ -245,9 +307,7 @@ export const Calendar: React.FC<CalendarProps> = ({
     const dates = Array.isArray(newValue) ? newValue : [newValue];
 
     // If range was just completed and we have rangeHalfDayConfig, apply it
-    console.log('Calendar - rangeCompleted:', rangeCompleted, 'rangeHalfDayConfig:', rangeHalfDayConfig, 'allowHalfDay:', allowHalfDay, 'dates.length:', dates.length);
     if (rangeCompleted && rangeHalfDayConfig && allowHalfDay && dates.length === 2) {
-      console.log('Calendar - Applying rangeHalfDayConfig:', rangeHalfDayConfig);
       const [startDate, endDate] = dates;
 
       // Apply configured day types to start and end dates
@@ -466,11 +526,9 @@ export const Calendar: React.FC<CalendarProps> = ({
 
     const key = dateToString(date);
     const selection = dateSelections.get(key);
-    console.log('getDayTypeIndicator - date:', date, 'key:', key, 'selection:', selection, 'dateSelections size:', dateSelections.size);
     if (!selection || !isDateSelected(date)) return null;
 
     const dayType = selection.dayType || 'full';
-    console.log('getDayTypeIndicator - rendering dayType:', dayType);
 
     // For full day, no indicator needed (entire circle is colored)
     if (dayType === 'full') return null;
@@ -541,7 +599,10 @@ export const Calendar: React.FC<CalendarProps> = ({
         backgroundColor: theme.background.primary,
         borderRadius: '8px',
         border: `1px solid ${theme.border.default}`,
-        display: 'inline-block'
+        display: 'inline-block',
+        // Don't text-select day numbers / headers when clicking dates.
+        userSelect: 'none',
+        WebkitUserSelect: 'none'
       }}
     >
       {/* Header */}
@@ -785,7 +846,7 @@ export const Calendar: React.FC<CalendarProps> = ({
                   onClick={() => date && handleDateClick(date)}
                   onMouseEnter={() => date && setHoveredDate(date)}
                   onMouseLeave={() => setHoveredDate(null)}
-                  onDoubleClick={(e) => date && allowHalfDay && isDateSelected(date) && toggleDayType(date, e)}
+                  onDoubleClick={(e) => date && allowHalfDay && !halfDayClickCycle && isDateSelected(date) && toggleDayType(date, e)}
                 >
                   {date && getDayTypeIndicator(date)}
                   {date && (
@@ -820,6 +881,8 @@ export const Calendar: React.FC<CalendarProps> = ({
             >
               {rangeHalfDayConfig && selectionMode === 'range'
                 ? `Start: ${rangeHalfDayConfig.startDayType === 'half-afternoon' ? 'Afternoon' : rangeHalfDayConfig.startDayType === 'half-morning' ? 'Morning' : 'Full day'}, End: ${rangeHalfDayConfig.endDayType === 'half-morning' ? 'Morning' : rangeHalfDayConfig.endDayType === 'half-afternoon' ? 'Afternoon' : 'Full day'}`
+                : halfDayClickCycle
+                ? 'Click a date to cycle: morning → afternoon → full day → clear'
                 : 'Double-click selected dates to toggle full/half-day'}
             </Typography>
           )}

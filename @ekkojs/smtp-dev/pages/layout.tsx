@@ -1,7 +1,7 @@
 import { useEffect } from "@ekko/react";
 import { useAtom } from "ekko:rune/mimir";
 import { ThemeProvider, Button } from "@ekko/asgard";
-import { useRouter } from "ekko:rune/router";
+import { useRouter, Link } from "ekko:rune/router";
 import { statusAtom } from "../atoms/mail";
 
 const InboxIcon = () => (

@@ -3,12 +3,18 @@ import { safeUrl } from '../../_internal';
 // MarkdownRenderer — Renders markdown text with theme-aware styling
 // ============================================================================
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { useTheme } from '../../theme';
 import type { MarkdownRendererProps, MarkdownRendererSize, MarkdownNode, InlineNode, ListItemNode } from './types';
 import { parseMarkdown } from './markdownParser';
 import { SyntaxColor } from '../SyntaxColor/SyntaxColor';
-import { typescriptLanguage, javascriptLanguage, jsonLanguage, cssLanguage, htmlLanguage, pythonLanguage, markdownLanguage } from '../SyntaxColor/languages';
+import { ImageLightbox } from './ImageLightbox';
+import {
+  typescriptLanguage, javascriptLanguage, jsonLanguage, cssLanguage, scssLanguage, htmlLanguage,
+  pythonLanguage, markdownLanguage, lessLanguage, rustLanguage, goLanguage, cppLanguage, csharpLanguage,
+  javaLanguage, kotlinLanguage, swiftLanguage, rubyLanguage, phpLanguage, sqlLanguage, yamlLanguage,
+  shellLanguage, dockerfileLanguage, graphqlLanguage, xmlLanguage,
+} from '../SyntaxColor/languages';
 import type { MonarchLanguage } from '../SyntaxColor/types';
 
 /** Size configuration */
@@ -36,12 +42,48 @@ const languageMap: Record<string, MonarchLanguage> = {
   jsonc: jsonLanguage,
   json5: jsonLanguage,
   css: cssLanguage,
+  scss: scssLanguage,
+  sass: scssLanguage,
+  less: lessLanguage,
   html: htmlLanguage,
-  xml: htmlLanguage,
+  xml: xmlLanguage,
+  svg: xmlLanguage,
   python: pythonLanguage,
   py: pythonLanguage,
   markdown: markdownLanguage,
   md: markdownLanguage,
+  // MIT-adapted from monaco-editor (asgard 1.0.4)
+  rust: rustLanguage,
+  rs: rustLanguage,
+  go: goLanguage,
+  golang: goLanguage,
+  cpp: cppLanguage,
+  'c++': cppLanguage,
+  cc: cppLanguage,
+  c: cppLanguage,
+  h: cppLanguage,
+  hpp: cppLanguage,
+  csharp: csharpLanguage,
+  cs: csharpLanguage,
+  'c#': csharpLanguage,
+  java: javaLanguage,
+  kotlin: kotlinLanguage,
+  kt: kotlinLanguage,
+  swift: swiftLanguage,
+  ruby: rubyLanguage,
+  rb: rubyLanguage,
+  php: phpLanguage,
+  sql: sqlLanguage,
+  yaml: yamlLanguage,
+  yml: yamlLanguage,
+  shell: shellLanguage,
+  sh: shellLanguage,
+  bash: shellLanguage,
+  zsh: shellLanguage,
+  dockerfile: dockerfileLanguage,
+  docker: dockerfileLanguage,
+  graphql: graphqlLanguage,
+  gql: graphqlLanguage,
 };
 
 /** Flattens an inline-node tree to its plain text (for heading anchors / a table of contents). */
@@ -70,12 +112,17 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   size = 'normal',
   syntaxHighlight = true,
   codeColorMap,
+  codeCopyButton = false,
+  imageLightbox = false,
   onLinkClick,
   style,
   className,
 }) => {
   const { theme } = useTheme();
   const config = sizeConfig[size];
+
+  // Open image (click-to-zoom) lightbox — only used when imageLightbox is enabled.
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   const ast = useMemo(() => parseMarkdown(markdown), [markdown]);
 
@@ -129,15 +176,22 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               {renderInline(node.children, key)}
             </a>
           );
-        case 'image':
+        case 'image': {
+          const resolvedSrc = safeUrl(node.src);
           return (
             <img
               key={key}
-              src={safeUrl(node.src)}
+              src={resolvedSrc}
               alt={node.alt}
-              style={{ maxWidth: '100%', borderRadius: '4px' }}
+              onClick={imageLightbox ? () => setLightbox({ src: resolvedSrc, alt: node.alt }) : undefined}
+              style={{
+                maxWidth: '100%',
+                borderRadius: '4px',
+                cursor: imageLightbox ? 'zoom-in' : undefined,
+              }}
             />
           );
+        }
         case 'line_break':
           return <br key={key} />;
         default:
@@ -223,6 +277,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                 showLineNumbers
                 showIndentGuides
                 showFolding
+                showCopyButton={codeCopyButton}
                 tokenColorMap={codeColorMap}
               />
             </div>
@@ -345,6 +400,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       className={className}
     >
       {ast.map((node, i) => renderBlock(node, i))}
+      {imageLightbox && lightbox && (
+        <ImageLightbox
+          src={lightbox.src}
+          alt={lightbox.alt}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 };

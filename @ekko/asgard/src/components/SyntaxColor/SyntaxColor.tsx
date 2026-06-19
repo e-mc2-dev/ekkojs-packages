@@ -33,6 +33,24 @@ function addAlpha(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/** Clipboard fallback for non-secure contexts where navigator.clipboard is unavailable. */
+function fallbackCopy(text: string): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Severity rank for priority when multiple diagnostics on same line */
 function severityRank(severity: string): number {
   switch (severity) {
@@ -65,11 +83,27 @@ export const SyntaxColor: React.FC<SyntaxColorProps> = ({
   trailingLines = 0,
   diagnostics = [],
   showMinimap = false,
+  showCopyButton = false,
   onLineClick,
   style,
   className,
 }) => {
   const { theme } = useTheme();
+  const [copied, setCopied] = useState(false);
+  // The copy button sits dim until the pointer is over the code block, then fades in (fast).
+  const [hovered, setHovered] = useState(false);
+
+  // Copy the ORIGINAL source (not the tokenized DOM) to the clipboard.
+  const handleCopy = useCallback(() => {
+    const done = () => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); };
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(code).then(done).catch(() => fallbackCopy(code) && done());
+        return;
+      }
+    } catch { /* fall through */ }
+    if (fallbackCopy(code)) done();
+  }, [code]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const charMeasureRef = useRef<HTMLSpanElement>(null);
   const config = sizeConfig[size];
@@ -284,6 +318,7 @@ export const SyntaxColor: React.FC<SyntaxColorProps> = ({
 
   const containerStyle: React.CSSProperties = {
     display: 'flex',
+    position: 'relative',
     border: `1px solid ${theme.border.default}`,
     borderRadius: '4px',
     overflow: 'hidden',
@@ -305,7 +340,55 @@ export const SyntaxColor: React.FC<SyntaxColorProps> = ({
   };
 
   return (
-    <div style={containerStyle} className={className}>
+    <div
+      style={containerStyle}
+      className={className}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Copy-to-clipboard button (top-right, small inset). Copies the original source. */}
+      {showCopyButton && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={copied ? 'Copied' : 'Copy code'}
+          title={copied ? 'Copied' : 'Copy code'}
+          style={{
+            position: 'absolute',
+            top: '6px',
+            right: '6px',
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '28px',
+            height: '28px',
+            padding: 0,
+            cursor: 'pointer',
+            // Dim until the code block is hovered (or after a copy, so the check is always visible).
+            opacity: hovered || copied ? 1 : 0.25,
+            color: copied ? theme.semantic.success : theme.text.secondary,
+            backgroundColor: addAlpha(theme.background.secondary, 0.85),
+            border: `1px solid ${theme.border.default}`,
+            borderRadius: '4px',
+            transition: 'opacity 0.12s ease, color 0.15s ease, background-color 0.15s ease',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.background.tertiary; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = addAlpha(theme.background.secondary, 0.85); }}
+        >
+          {copied ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          )}
+        </button>
+      )}
+
       {/* Hidden span to measure actual monospace character width */}
       <span
         ref={charMeasureRef}

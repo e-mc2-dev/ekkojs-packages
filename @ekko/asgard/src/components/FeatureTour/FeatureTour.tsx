@@ -24,6 +24,14 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({
   const currentStep = config.steps[currentStepIndex];
   const totalSteps = config.steps.length;
 
+  // Live ref to the current step so the index-keyed effects below read fresh step data WITHOUT
+  // re-running on every parent re-render. Critical: a step `action` that sets parent state recreates
+  // the inline `config` (new step objects). Depending on the step OBJECT would re-run the setup effect
+  // and re-fire the action → setState → re-render → … infinite loop that freezes the tab (made total
+  // by the window-level event blocker). Keying on currentStepIndex + this ref avoids that entirely.
+  const currentStepRef = useRef(currentStep);
+  currentStepRef.current = currentStep;
+
   // Get target element
   const getTargetElement = useCallback((step: TourStep): HTMLElement | null => {
     if (!step.target) return null;
@@ -37,93 +45,73 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({
     }
   }, []);
 
-  // Execute step action and wait
-  const executeStepSetup = useCallback(async (step: TourStep) => {
-    setIsProcessing(true);
-
-    try {
-      // Execute action before showing step
-      if (step.action) {
-        await Promise.resolve(step.action());
-      }
-
-      // Wait if specified
-      if (step.wait) {
-        if (typeof step.wait === 'number') {
-          await new Promise(resolve => setTimeout(resolve, step.wait as number));
-        } else {
-          await step.wait();
-        }
-      }
-
-      // Scroll element into view
-      const targetEl = getTargetElement(step);
-      if (targetEl && step.scrollIntoView !== false) {
-        targetEl.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'center'
-        });
-
-        // Wait for scroll to complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [getTargetElement]);
-
-  // Update target rect when step changes
+  // Run a step's setup (action → wait → scroll) and position the tooltip. Keyed on currentStepIndex
+  // (a stable number), NOT the step object, so it runs EXACTLY ONCE per step — re-renders triggered by
+  // a step's own action don't re-enter it. The step is read from the ref so it's always current.
   useEffect(() => {
-    if (!isOpen || !currentStep) return;
+    if (!isOpen) return;
+    const step = currentStepRef.current;
+    if (!step) return;
 
-    const updateTarget = async () => {
-      await executeStepSetup(currentStep);
+    let cancelled = false;
 
-      const targetEl = getTargetElement(currentStep);
-      if (targetEl) {
-        const rect = targetEl.getBoundingClientRect();
-        setTargetRect(rect);
+    // Move the virtual anchor AND set the rect together: the panel's next position calc reads the new
+    // target's coordinates, so the tooltip appears at the right place instead of flashing the previous
+    // step's position then jumping. Also used as the scroll/resize handler so it stays glued.
+    const place = () => {
+      const el = getTargetElement(currentStepRef.current);
+      if (!el) { setTargetRect(null); return; }
+      const rect = el.getBoundingClientRect();
+      const a = virtualAnchorRef.current;
+      if (a) {
+        a.style.position = 'fixed';
+        a.style.top = `${rect.top}px`;
+        a.style.left = `${rect.left}px`;
+        a.style.width = `${rect.width}px`;
+        a.style.height = `${rect.height}px`;
+      }
+      setTargetRect(rect);
+    };
 
-        // Update virtual anchor position for FloatingPanel
-        if (virtualAnchorRef.current) {
-          virtualAnchorRef.current.style.position = 'fixed';
-          virtualAnchorRef.current.style.top = `${rect.top}px`;
-          virtualAnchorRef.current.style.left = `${rect.left}px`;
-          virtualAnchorRef.current.style.width = `${rect.width}px`;
-          virtualAnchorRef.current.style.height = `${rect.height}px`;
+    const run = async () => {
+      setIsProcessing(true);
+      try {
+        // Run the step's action + explicit wait once (they may create/reveal the target).
+        if (step.action) await Promise.resolve(step.action());
+        if (step.wait) {
+          if (typeof step.wait === 'number') await new Promise(resolve => setTimeout(resolve, step.wait as number));
+          else await step.wait();
         }
-      } else {
-        setTargetRect(null);
+        if (cancelled) return;
+
+        // Reveal immediately at the target's current position (no jump, no long disappearance)…
+        place();
+
+        // …then scroll it into view; the listeners below keep it tracking during the smooth scroll.
+        const el = getTargetElement(step);
+        if (el && step.scrollIntoView !== false) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+          await new Promise(resolve => setTimeout(resolve, 500));
+          if (cancelled) return;
+          place();
+        }
+      } finally {
+        if (!cancelled) setIsProcessing(false);
       }
     };
 
-    updateTarget();
+    run();
 
-    // Update on window resize/scroll
-    const handleUpdate = () => {
-      const targetEl = getTargetElement(currentStep);
-      if (targetEl) {
-        const rect = targetEl.getBoundingClientRect();
-        setTargetRect(rect);
-
-        if (virtualAnchorRef.current) {
-          virtualAnchorRef.current.style.top = `${rect.top}px`;
-          virtualAnchorRef.current.style.left = `${rect.left}px`;
-          virtualAnchorRef.current.style.width = `${rect.width}px`;
-          virtualAnchorRef.current.style.height = `${rect.height}px`;
-        }
-      }
-    };
-
-    window.addEventListener('resize', handleUpdate);
-    window.addEventListener('scroll', handleUpdate, true);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
 
     return () => {
-      window.removeEventListener('resize', handleUpdate);
-      window.removeEventListener('scroll', handleUpdate, true);
+      cancelled = true;
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
     };
-  }, [isOpen, currentStep, currentStepIndex, getTargetElement, executeStepSetup]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, currentStepIndex, getTargetElement]);
 
   // Navigation handlers
   const handleNext = useCallback(async () => {
@@ -168,19 +156,31 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({
     onClose();
   }, [isProcessing, config, onClose]);
 
-  // Auto-advance timer
-  useEffect(() => {
-    if (!isOpen || !currentStep || isProcessing) return;
+  // Latest-handler refs so the window/keyboard/auto-advance effects stay keyed on stable deps
+  // (index / isOpen) instead of re-subscribing on every render as these callbacks are recreated.
+  const handleNextRef = useRef(handleNext);
+  const handlePreviousRef = useRef(handlePrevious);
+  const handleSkipRef = useRef(handleSkip);
+  handleNextRef.current = handleNext;
+  handlePreviousRef.current = handlePrevious;
+  handleSkipRef.current = handleSkip;
 
-    const shouldAutoAdvance = currentStep.autoAdvance ||
-      (config.autoAdvance && currentStep.autoAdvance !== false);
+  // Auto-advance timer. Keyed on the index (not the step object / handleNext) so the rAF progress
+  // updates don't re-run it (which would reset the timer every frame and never advance).
+  useEffect(() => {
+    if (!isOpen || isProcessing) return;
+    const step = currentStepRef.current;
+    if (!step) return;
+
+    const shouldAutoAdvance = step.autoAdvance ||
+      (config.autoAdvance && step.autoAdvance !== false);
 
     if (!shouldAutoAdvance) {
       setAutoAdvanceProgress(0);
       return;
     }
 
-    const delay = currentStep.autoAdvanceDelay ?? config.autoAdvanceDelay ?? 5000;
+    const delay = step.autoAdvanceDelay ?? config.autoAdvanceDelay ?? 5000;
     const startTime = Date.now();
     autoAdvanceStartTimeRef.current = startTime;
 
@@ -194,7 +194,7 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({
         autoAdvanceTimerRef.current = requestAnimationFrame(updateProgress);
       } else {
         // Auto-advance to next step
-        handleNext();
+        handleNextRef.current();
       }
     };
 
@@ -208,11 +208,11 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({
       setAutoAdvanceProgress(0);
       autoAdvanceStartTimeRef.current = null;
     };
-  }, [isOpen, currentStep, currentStepIndex, isProcessing, config.autoAdvance, config.autoAdvanceDelay, handleNext]);
+  }, [isOpen, currentStepIndex, isProcessing, config.autoAdvance, config.autoAdvanceDelay]);
 
   // Block all events at window level except for tooltip navigation
   useEffect(() => {
-    if (!isOpen || currentStep?.allowInteraction) return;
+    if (!isOpen || currentStepRef.current?.allowInteraction) return;
 
     const blockEvent = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -234,19 +234,19 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({
           if (isButton) {
             // Check for Next/Finish button
             if (text === 'Next' || text === 'Finish') {
-              handleNext();
+              handleNextRef.current();
               return;
             }
 
             // Check for Previous button
             if (text === 'Previous') {
-              handlePrevious();
+              handlePreviousRef.current();
               return;
             }
 
             // Check for Skip button (exact match only)
             if (text === 'Skip Tour') {
-              handleSkip();
+              handleSkipRef.current();
               return;
             }
           }
@@ -280,7 +280,8 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({
       window.removeEventListener('mouseover', blockEvent, true);
       window.removeEventListener('mouseout', blockEvent, true);
     };
-  }, [isOpen, currentStep?.allowInteraction, handleNext, handlePrevious, handleSkip]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, currentStepIndex]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -293,27 +294,27 @@ export const FeatureTour: React.FC<FeatureTourProps> = ({
         case 'ArrowRight':
         case 'ArrowDown':
           e.preventDefault();
-          handleNext();
+          handleNextRef.current();
           break;
         case 'ArrowLeft':
         case 'ArrowUp':
           e.preventDefault();
-          handlePrevious();
+          handlePreviousRef.current();
           break;
         case 'Escape':
           e.preventDefault();
-          handleSkip();
+          handleSkipRef.current();
           break;
         case 'Enter':
           e.preventDefault();
-          handleNext();
+          handleNextRef.current();
           break;
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, config.keyboard, isProcessing, handleNext, handlePrevious, handleSkip]);
+  }, [isOpen, config.keyboard, isProcessing]);
 
   if (!isOpen || !currentStep) return null;
 

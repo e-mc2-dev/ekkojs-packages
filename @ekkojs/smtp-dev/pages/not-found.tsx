@@ -1,3 +1,5 @@
+import { Link } from "ekko:rune/router";
+
 export default function NotFound() {
   return (
     <div className="empty">

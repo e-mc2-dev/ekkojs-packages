@@ -6,16 +6,6 @@
 import type { MonarchLanguage, MonarchRule, MonarchAction, SyntaxToken, TokenizedLine } from './types';
 
 /**
- * Resolves a rule's action to a normalized MonarchAction.
- */
-function resolveAction(action: string | MonarchAction): MonarchAction {
-  if (typeof action === 'string') {
-    return { token: action };
-  }
-  return action;
-}
-
-/**
  * Converts a Monarch regex (string or RegExp) to a usable RegExp.
  * Handles @keywords, @typeKeywords, @operators, @builtins expansions
  * and the @escapes / @digits / @symbols references.
@@ -24,58 +14,65 @@ function compileRegex(
   pattern: RegExp | string,
   language: MonarchLanguage
 ): RegExp {
-  if (pattern instanceof RegExp) {
-    // Ensure the regex is anchored to start and uses sticky if possible
-    const src = pattern.source;
-    const flags = language.ignoreCase ? 'i' : '';
-    return new RegExp('^(?:' + src + ')', flags);
-  }
-
-  let src = pattern;
-
-  // Replace @keywords etc. with alternation groups
-  const listReplacements: Record<string, string[] | undefined> = {
-    '@keywords': language.keywords,
-    '@typeKeywords': language.typeKeywords,
-    '@operators': language.operators,
-    '@builtins': language.builtins,
-  };
-
-  for (const [placeholder, list] of Object.entries(listReplacements)) {
-    if (src.includes(placeholder) && list && list.length > 0) {
-      const escaped = list.map(escapeRegex).join('|');
-      src = src.replace(placeholder, '(?:' + escaped + ')');
-    }
-  }
-
-  // Replace @escapes, @digits, @symbols with their regex sources
-  const regexReplacements: Record<string, RegExp | undefined> = {
-    '@escapes': language.escapes,
-    '@digits': language.digits,
-    '@symbols': language.symbols,
-  };
-
-  for (const [placeholder, regex] of Object.entries(regexReplacements)) {
-    if (src.includes(placeholder) && regex) {
-      src = src.replace(placeholder, '(?:' + regex.source + ')');
-    }
-  }
-
+  // `@attr` references are expanded for BOTH string and RegExp patterns: Monaco grammars write them as
+  // RegExp literals (e.g. `/@symbols/`, `/@controlKeywords/`) just as often as strings.
+  const src = expandAttrs(pattern instanceof RegExp ? pattern.source : pattern, language);
   const flags = language.ignoreCase ? 'i' : '';
   return new RegExp('^(?:' + src + ')', flags);
+}
+
+/**
+ * Expands `@attr` references against ANY top-level language attribute (not just the well-known
+ * keywords/operators/escapes lists): a string[] attr → an escaped alternation, a RegExp attr → its
+ * source. Longest names first so `@keywords` is not partially eaten by a shorter `@key`. (asgard 1.0.4)
+ */
+function expandAttrs(src: string, language: MonarchLanguage): string {
+  // Skip attributes that are NOT regex sources, so `@defaultToken`/`@tokenPostfix` are never inlined.
+  const skip = new Set(['tokenizer', 'defaultToken', 'tokenPostfix', 'brackets', 'start', 'ignoreCase', 'unicode']);
+  const attrs = Object.keys(language as unknown as Record<string, unknown>)
+    .filter((k) => !skip.has(k))
+    .sort((a, b) => b.length - a.length); // longest first so `@identifier` isn't eaten by `@id`
+  // Loop until stable: a list/regex/string attr may itself reference another `@attr` (Monaco resolves
+  // these recursively, e.g. scss `identifier` → `nonascii`). Bounded to avoid a pathological cycle.
+  for (let pass = 0; pass < 6 && src.indexOf('@') >= 0; pass++) {
+    let changed = false;
+    for (const attr of attrs) {
+      const placeholder = '@' + attr;
+      if (!src.includes(placeholder)) continue;
+      const val = (language as unknown as Record<string, unknown>)[attr];
+      let replacement: string | undefined;
+      if (Array.isArray(val)) {
+        if (val.length === 0) continue;
+        replacement = '(?:' + val.map((v) => escapeRegex(String(v))).join('|') + ')';
+      } else if (val instanceof RegExp) {
+        replacement = '(?:' + val.source + ')';
+      } else if (typeof val === 'string') {
+        replacement = '(?:' + val + ')';   // a regex-source fragment (e.g. scss `ws`, `identifier`)
+      }
+      if (replacement !== undefined) { src = src.split(placeholder).join(replacement); changed = true; }
+    }
+    if (!changed) break;
+  }
+  return src;
 }
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** A rule action as authored: a token string, a full action, or one action per capture group. */
+type RuleAction = string | MonarchAction | (string | MonarchAction)[];
+
 /**
- * Compiled rule for efficient matching.
+ * Compiled rule for efficient matching. The action is kept in its RAW form (not pre-resolved) because
+ * `cases` and capture-group arrays are resolved against the actual match at tokenize time. A trailing
+ * 3rd tuple element (nextState) is folded onto the action.
  */
 interface CompiledRule {
   regex: RegExp;
-  action: MonarchAction;
-  nextState?: string;
+  action: RuleAction;
+  /** nextState from the 3-tuple form, applied after the action's own next/switchTo. */
+  tupleNext?: string;
 }
 
 /**
@@ -105,26 +102,67 @@ function compileState(
 
   for (const rule of rawRules) {
     if ('include' in rule) {
-      const included = compileState(rule.include, language, cache, visited);
+      // Monaco writes includes as `{ include: '@whitespace' }`; the state is keyed without the `@`.
+      const inc = rule.include.startsWith('@') ? rule.include.slice(1) : rule.include;
+      const included = compileState(inc, language, cache, visited);
       compiled.push(...included);
       continue;
     }
 
     const monarchRule = rule as Exclude<MonarchRule, { include: string }>;
     const [pattern, actionRaw] = monarchRule;
-    const nextState = monarchRule.length === 3 ? (monarchRule as [RegExp | string, string | MonarchAction, string])[2] : undefined;
-    const action = resolveAction(actionRaw);
+    const tupleNext = monarchRule.length === 3 ? (monarchRule as [unknown, unknown, string])[2] : undefined;
     const regex = compileRegex(pattern, language);
 
-    compiled.push({
-      regex,
-      action: nextState ? { ...action, next: nextState } : action,
-      nextState: nextState || action.next,
-    });
+    compiled.push({ regex, action: actionRaw as RuleAction, tupleNext });
   }
 
   cache.set(stateName, compiled);
   return compiled;
+}
+
+/**
+ * Resolves a Monarch `cases` map against the matched text, returning the selected token string or action.
+ * Guards (first match wins): `@default` (always), `@eos` (empty text), `@<attr>` (membership in the
+ * language list `<attr>`, e.g. `@keywords`), `~regex` / `!~regex` (regex match / non-match), or a literal
+ * (exact string equality). Falls back to the default token if nothing matches.
+ */
+function resolveCases(
+  cases: Record<string, string | MonarchAction>,
+  text: string,
+  language: MonarchLanguage
+): string | MonarchAction {
+  for (const guard of Object.keys(cases)) {
+    const act = cases[guard];
+    if (guard === '@default' || guard === '@DEFAULT' || guard === 'default') return act;
+    if (guard === '@eos') { if (text.length === 0) return act; continue; }
+    if (guard.startsWith('!~')) {
+      try { if (!new RegExp('^(?:' + guard.slice(2) + ')$', language.ignoreCase ? 'i' : '').test(text)) return act; } catch { /* bad guard */ }
+      continue;
+    }
+    if (guard.startsWith('~')) {
+      try { if (new RegExp('^(?:' + guard.slice(1) + ')$', language.ignoreCase ? 'i' : '').test(text)) return act; } catch { /* bad guard */ }
+      continue;
+    }
+    if (guard.startsWith('@')) {
+      const list = (language as unknown as Record<string, unknown>)[guard.slice(1)];
+      if (Array.isArray(list)) {
+        const hit = language.ignoreCase
+          ? list.some((w) => String(w).toLowerCase() === text.toLowerCase())
+          : list.includes(text);
+        if (hit) return act;
+      }
+      continue;
+    }
+    if (guard === text) return act;
+  }
+  return { token: language.defaultToken || 'source' };
+}
+
+/** Resolves the `@brackets` token to the language's bracket-table token for `text`, else a default. */
+function bracketToken(text: string, language: MonarchLanguage): string {
+  const b = language.brackets?.find((e) => e.open === text || e.close === text);
+  return b ? b.token : 'delimiter.bracket';
 }
 
 /**
@@ -170,9 +208,19 @@ function resolveNextState(
     return [...stateStack, stateStack[stateStack.length - 1]];
   }
 
+  if (next === '@popall') {
+    return ['root'];
+  }
+
   // Direct state name (strip leading @ if present)
   const stateName = next.startsWith('@') ? next.slice(1) : next;
   return [...stateStack, stateName];
+}
+
+/** Replaces the top of the state stack (Monarch `switchTo`). */
+function switchTop(stateStack: string[], target: string): string[] {
+  const name = target.startsWith('@') ? target.slice(1) : target;
+  return [...stateStack.slice(0, -1), name];
 }
 
 /**
@@ -192,50 +240,84 @@ function tokenizeLine(
   while (pos < line.length && iterations < maxIterations) {
     iterations++;
     const currentState = stateStack[stateStack.length - 1];
-    const rules = compiled.states.get(currentState) || [];
+    // Monaco state parameterization: a pushed state may carry a `.arg` suffix (e.g.
+    // `phpInSimpleState.root`) where the base state holds the rules and the arg drives `$S2` guards. We
+    // resolve rules by the base name when the exact (parameterized) name has no state of its own.
+    const rules = compiled.states.get(currentState)
+      || (currentState.includes('.') ? compiled.states.get(currentState.split('.')[0]) : undefined)
+      || [];
     const remaining = line.slice(pos);
     let matched = false;
 
     for (const rule of rules) {
       const match = remaining.match(rule.regex);
-      if (match && match[0].length > 0) {
-        // Handle @rematch: don't consume text, just switch state and re-try
-        if (rule.action.token === '@rematch') {
-          if (rule.action.switchTo) {
-            const targetState = rule.action.switchTo.startsWith('@')
-              ? rule.action.switchTo.slice(1)
-              : rule.action.switchTo;
-            // switchTo replaces the top of the stack (unlike next which pushes)
-            stateStack = [...stateStack.slice(0, -1), targetState];
-          } else if (rule.nextState) {
-            stateStack = resolveNextState(rule.nextState, stateStack);
-          }
-          matched = true;
-          break;
-        }
+      if (!match) continue;
+      const fullText = match[0];           // may be zero-width (e.g. a lookahead feeding @rematch)
+      const lang = compiled.language;
 
-        tokens.push({
-          text: match[0],
-          type: rule.action.token,
-        });
-        pos += match[0].length;
+      // Resolve the (possibly guarded / per-group) action into emitted tokens + a state directive.
+      let directive: { next?: string; switchTo?: string } | undefined;
+      let goBack = 0;
+      let rematch = false;
 
-        if (rule.action.goBack) {
-          pos -= rule.action.goBack;
+      const applySingle = (raw: string | MonarchAction | undefined, text: string) => {
+        // A missing/embedded action (e.g. `nextEmbedded` rules, or a rule with fewer actions than capture
+        // groups) must degrade to the default token, never crash the tokenizer.
+        if (raw == null) { if (text.length > 0) tokens.push({ text, type: lang.defaultToken || 'source' }); return; }
+        let act: MonarchAction = typeof raw === 'string' ? { token: raw } : raw;
+        if (act.cases) {
+          const chosen = resolveCases(act.cases, text, lang);
+          act = typeof chosen === 'string' ? { token: chosen } : { ...act, cases: undefined, ...chosen };
         }
+        if (act.next || act.switchTo) directive = { next: act.next, switchTo: act.switchTo };
+        if (act.goBack) goBack = act.goBack;
+        let tok = act.token ?? (lang.defaultToken || 'source');
+        if (tok === '@rematch') { rematch = true; return; }
+        if (tok === '@brackets') tok = bracketToken(text, lang);
+        // Monaco token-name substitutions: `$0` = the matched text, `$1..$9` = the rule's capture groups,
+        // `$S0..` = state names (not meaningful for a flat token name → stripped). So `keyword.$0` on a
+        // match of `func` becomes `keyword.func` (the theme prefix-resolves it back to the keyword color).
+        if (tok.indexOf('$') >= 0) {
+          tok = tok
+            .replace(/\$S\d+/g, '')
+            .replace(/\$(\d)/g, (_m, d) => (d === '0' ? text : (match[Number(d)] ?? '')));
+        }
+        if (text.length > 0) tokens.push({ text, type: tok });
+      };
 
-        // Handle switchTo (replaces top of stack) vs next (pushes)
-        if (rule.action.switchTo) {
-          const targetState = rule.action.switchTo.startsWith('@')
-            ? rule.action.switchTo.slice(1)
-            : rule.action.switchTo;
-          stateStack = [...stateStack.slice(0, -1), targetState];
-        } else {
-          stateStack = resolveNextState(rule.nextState, stateStack);
+      if (Array.isArray(rule.action)) {
+        // One action per capture group: element i ↦ match[i+1].
+        for (let i = 0; i < rule.action.length; i++) {
+          const g = match[i + 1];
+          if (g === undefined || g === '') continue;
+          applySingle(rule.action[i], g);
         }
+      } else {
+        applySingle(rule.action, fullText);
+      }
+
+      // A 3-tuple nextState applies only if the action itself set no transition.
+      if (!directive && rule.tupleNext) directive = { next: rule.tupleNext };
+
+      // Zero-width match that neither re-matches nor changes state would consume nothing and loop
+      // forever — reject it and let a later rule (or the default-char fallback) make progress.
+      if (fullText.length === 0 && !rematch && !directive) continue;
+
+      if (rematch) {
+        // @rematch: change state but consume nothing, then re-try from the same position.
+        if (directive?.switchTo) stateStack = switchTop(stateStack, directive.switchTo);
+        else if (directive?.next) stateStack = resolveNextState(directive.next, stateStack);
         matched = true;
         break;
       }
+
+      pos += fullText.length;
+      if (goBack) pos -= goBack;
+
+      if (directive?.switchTo) stateStack = switchTop(stateStack, directive.switchTo);
+      else if (directive?.next) stateStack = resolveNextState(directive.next, stateStack);
+      matched = true;
+      break;
     }
 
     if (!matched) {

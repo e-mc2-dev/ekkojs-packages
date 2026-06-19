@@ -1,3 +1,5 @@
+import { Link } from "ekko:rune/router";
+
 export default function ErrorPage({ error }: any) {
   return (
     <div className="empty">

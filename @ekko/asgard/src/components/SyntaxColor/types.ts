@@ -10,29 +10,40 @@ import React from 'react';
 
 /** Action taken when a Monarch rule matches */
 export interface MonarchAction {
-  /** Token type to assign (e.g. 'keyword', 'comment', 'string') */
-  token: string;
-  /** State to transition to */
+  /** Token type to assign (e.g. 'keyword', 'comment', 'string'). `@rematch` re-tries without consuming;
+   *  `@brackets` resolves the token from the language `brackets` table. */
+  token?: string;
+  /** State to transition to (push). */
   next?: string;
-  /** Push current state and switch to another */
+  /** Replace the top of the state stack with another state. */
   switchTo?: string;
-  /** Go back N characters */
+  /** Go back N characters after matching. */
   goBack?: number;
-  /** Log message (debug) */
+  /** Log message (debug, ignored at runtime). */
   log?: string;
+  /**
+   * Guarded dispatch (Monaco Monarch `cases`): the matched text is tested against each guard in order and
+   * the first matching guard's action applies. Guards:
+   *   `@default`   — always matches (fallback)
+   *   `@eos`       — matched text is empty
+   *   `@<attr>`    — matched text is a member of the language list `<attr>` (e.g. `@keywords`)
+   *   `<literal>`  — exact string equality with the matched text
+   * The value is a token string or a nested MonarchAction (so a case can also transition state).
+   */
+  cases?: Record<string, string | MonarchAction>;
 }
 
 /**
- * A single Monarch tokenizer rule.
- * Can be:
+ * A single Monarch tokenizer rule. Can be:
  * - [regex, tokenType]
  * - [regex, tokenType, nextState]
  * - [regex, MonarchAction]
- * - { include: stateName } to include rules from another state
+ * - [regex, (string | MonarchAction)[]]   — one action per capture group (group 1 → [0], …)
+ * - { include: stateName }                — include rules from another state
  */
 export type MonarchRule =
-  | [RegExp | string, string | MonarchAction]
-  | [RegExp | string, string | MonarchAction, string]
+  | [RegExp | string, string | MonarchAction | (string | MonarchAction)[]]
+  | [RegExp | string, string | MonarchAction | (string | MonarchAction)[], string]
   | { include: string };
 
 /**
@@ -232,6 +243,9 @@ export interface SyntaxColorProps {
 
   /** Show the minimap on the right side */
   showMinimap?: boolean;
+
+  /** Show a copy-to-clipboard button in the top-right corner (copies the original `code`). Default false. */
+  showCopyButton?: boolean;
 
   /** Line click handler */
   onLineClick?: (lineNumber: number) => void;

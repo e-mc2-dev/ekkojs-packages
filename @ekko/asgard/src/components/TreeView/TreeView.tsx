@@ -210,6 +210,31 @@ export const TreeView = <T,>({
     return null;
   }
 
+  // Auto-reveal the selected node when selection changes (e.g. deep-linking to a nested page by URL):
+  // expand its ancestor folders so it is visible, and scroll it into view in case the tree overflows.
+  useEffect(() => {
+    if (!selectedIds || selectedIds.length === 0) return;
+    const needed = new Set<string>();
+    for (const sel of selectedIds) {
+      const path = getNodePath(nodes, sel);
+      if (path) for (const id of path.slice(0, -1)) needed.add(id);
+    }
+    const missing = Array.from(needed).filter((id) => !expandedIds.includes(id));
+    if (missing.length) onExpandedChange?.([...expandedIds, ...missing]);
+    const sel = selectedIds[0];
+    const t = setTimeout(() => {
+      try {
+        const esc = (typeof CSS !== "undefined" && (CSS as any).escape) ? CSS.escape(sel) : sel;
+        const el = treeRef.current?.querySelector(`[data-tree-id="${esc}"]`) as any;
+        el?.scrollIntoView?.({ block: "nearest" });
+      } catch { /* ignore */ }
+    }, 60);
+    return () => clearTimeout(t);
+    // selectedIds.join keys the effect to selection changes; expandedIds is read from closure to avoid a
+    // re-expand loop (a selection change is the only trigger).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds.join("|"), nodes]);
+
   const handleExpand = useCallback((nodeId: string) => {
     const newExpandedIds = [...expandedIds, nodeId];
     if (controlledExpandedIds) {
@@ -698,6 +723,7 @@ export const TreeView = <T,>({
 
         {/* Node content */}
         <div
+          data-tree-id={node.id}
           style={nodeContentStyle}
           onClick={(e) => {
             if (!node.disabled) {

@@ -43,6 +43,11 @@ export interface TextBoxProps {
   hintText?: string;
   hintTextPosition?: HintTextPosition;
 
+  // Floating label (the placeholder that floats up on focus/value)
+  /** Draw a background behind the floated label so it masks the border line it sits on.
+   *  Some themes look better without it (the label then sits flush on the field). Default true. */
+  floatingLabelBackground?: boolean;
+
   // Multiline
   multiline?: boolean;
   rows?: number;
@@ -93,6 +98,7 @@ export const TextBox: React.FC<TextBoxProps> = ({
   validationMessage,
   hintText,
   hintTextPosition = 'below',
+  floatingLabelBackground = true,
   multiline = false,
   rows = 3,
   autoExtend = false,
@@ -470,12 +476,19 @@ export const TextBox: React.FC<TextBoxProps> = ({
                 transform: showFloatingPlaceholder ? 'none' : 'translateY(-50%)',
                 fontSize: showFloatingPlaceholder ? '11px' : config.fontSize,
                 color: isFocused ? semanticColor : theme.text.secondary,
-                backgroundColor: showFloatingPlaceholder ? theme.background.primary : 'transparent',
-                padding: showFloatingPlaceholder ? '0 4px' : '0',
+                backgroundColor: showFloatingPlaceholder && floatingLabelBackground ? theme.background.primary : 'transparent',
+                padding: showFloatingPlaceholder && floatingLabelBackground ? '0 4px' : '0',
                 transition: 'all 0.2s ease',
                 pointerEvents: 'none',
                 zIndex: 1,
-                textDecoration: disabled ? 'line-through' : 'none'
+                textDecoration: disabled ? 'line-through' : 'none',
+                // Never wrap onto a second line (it would cover the input text); truncate with an ellipsis.
+                display: 'block',
+                maxWidth: leftIcon ? 'calc(100% - 8px)' : 'calc(100% - 16px)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                boxSizing: 'border-box'
               }}
             >
               {placeholder}
@@ -523,7 +536,7 @@ export const TextBox: React.FC<TextBoxProps> = ({
             <input
               id={inputId}
               ref={inputRef}
-              type={type === 'password' && !revealPassword ? 'password' : type}
+              type={type === 'password' ? (revealPassword ? 'text' : 'password') : type}
               value={mask !== 'none' ? displayValue : value}
               onChange={handleChange}
               onFocus={handleFocus}

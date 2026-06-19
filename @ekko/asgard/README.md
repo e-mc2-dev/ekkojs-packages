@@ -47,3 +47,8 @@ function App() {
 
 Wrap your app in `ThemeProvider` for built-in light/dark and 20+ palettes, and use `useTheme` to read
 or switch the active theme.
+
+## Releases
+
+See [`CHANGELOG.md`](CHANGELOG.md) for what changed in each version. This release (1.0.5) requires
+EkkoJS `>= 0.8.6`.

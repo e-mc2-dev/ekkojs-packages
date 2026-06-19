@@ -1,5 +1,5 @@
 import { useState, useEffect } from "@ekko/react";
-import { useRouter } from "ekko:rune/router";
+import { useRouter, Link } from "ekko:rune/router";
 import { Button } from "@ekko/asgard";
 
 function fmtDate(epoch: number): string {
