@@ -34,7 +34,8 @@ export const Alert: React.FC<AlertProps> = ({
   action,
   onClose,
   style,
-  className
+  className,
+  ...rest
 }) => {
   const { theme } = useTheme();
   const [visible, setVisible] = useState(true);
@@ -152,7 +153,7 @@ export const Alert: React.FC<AlertProps> = ({
   };
 
   return (
-    <div style={alertStyles} className={className} role="alert">
+    <div {...rest} style={alertStyles} className={className} role="alert">
       {icon !== false && (
         <div style={iconContainerStyles}>
           {renderIcon()}

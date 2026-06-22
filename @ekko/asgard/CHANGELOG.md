@@ -1,5 +1,27 @@
 # @ekko/asgard changelog
 
+## 1.0.7
+
+Requires EkkoJS `>= 0.8.6`. Fixes a server-render crash in 1.0.6.
+
+### Fixed
+
+- **Select**: removed a `process.env.NODE_ENV` guard around the dev misuse-warning. EkkoJS has no Node
+  `process`, so rendering a `<Select>` server-side threw `ReferenceError: process is not defined`. The
+  warning (pass `options={[…]}`, not children) now fires unconditionally on misuse, with no `process` ref.
+
+## 1.0.6
+
+Requires EkkoJS `>= 0.8.6`. Additive, no behaviour change on upgrade.
+
+### Fixed
+
+- **Prop forwarding**: `Button`, `Card`, `TextBox`, `Select`, and `Alert` now forward unknown props
+  (`data-*`, `aria-*`, `id`, `title`, `role`, …) to their root element. Previously these components
+  destructured only their named props and dropped everything else, so a `data-*` test hook, an analytics
+  attribute, or an extra `aria-*` on the component never reached the DOM. The explicit props still win over
+  anything forwarded.
+
 ## 1.0.5
 
 Requires EkkoJS `>= 0.8.6` (no maximum). Everything below is additive and opt-in, so upgrading from

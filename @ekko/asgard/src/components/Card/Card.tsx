@@ -23,7 +23,8 @@ export const Card: React.FC<CardProps> = ({
   hoverable = false,
   onClick,
   style,
-  className
+  className,
+  ...rest
 }) => {
   const { theme } = useTheme();
 
@@ -107,6 +108,7 @@ export const Card: React.FC<CardProps> = ({
 
   return (
     <div
+      {...rest}
       style={cardStyles}
       className={className}
       onClick={onClick}

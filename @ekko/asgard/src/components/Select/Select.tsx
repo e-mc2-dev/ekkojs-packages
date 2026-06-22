@@ -47,7 +47,7 @@ export const Select: React.FC<SelectProps> = ({
   value: controlledValue,
   defaultValue,
   onChange,
-  options,
+  options: optionsProp,
   placeholder = '',
   size = 'normal',
   variant = 'outlined',
@@ -64,8 +64,19 @@ export const Select: React.FC<SelectProps> = ({
   maxHeight = 300,
   autocomplete = false,
   hintTextPosition,
-  className
+  className,
+  ...rest
 }) => {
+  // Tolerate misuse: a forgotten `options` prop, or `<Select><option/></Select>` (children are NOT
+  // supported), would otherwise crash the whole app at `options.find(...)`. Degrade to an empty select
+  // and warn in dev instead of throwing. `options` is still typed as required so TS users get the hint.
+  const options = Array.isArray(optionsProp) ? optionsProp : [];
+  if (!Array.isArray(optionsProp)) {
+    // EkkoJS has no Node `process`; warn unconditionally on misuse rather than gating on NODE_ENV.
+    // eslint-disable-next-line no-console
+    console.warn('@ekko/asgard <Select>: `options` must be an array of { value, label }. ' +
+      'Children (<option>) are not supported — pass options={[…]} instead.');
+  }
   const { theme } = useTheme();
   const [internalValue, setInternalValue] = useState<string | number | undefined>(defaultValue);
   const [isOpen, setIsOpen] = useState(false);
@@ -235,6 +246,7 @@ export const Select: React.FC<SelectProps> = ({
   return (
     <>
       <div
+        {...rest}
         ref={containerRef}
         className={className}
         onKeyDown={handleKeyDown}

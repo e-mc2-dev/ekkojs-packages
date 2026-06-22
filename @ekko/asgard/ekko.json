@@ -1,6 +1,6 @@
 {
   "name": "@ekko/asgard",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "type": "lib",
   "minEkko": "0.8.6",
   "entry": "src/index.ts",

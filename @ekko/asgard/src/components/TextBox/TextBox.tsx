@@ -116,7 +116,8 @@ export const TextBox: React.FC<TextBoxProps> = ({
   onFocus,
   onBlur,
   onKeyDown,
-  onClick
+  onClick,
+  ...rest
 }) => {
   const { theme } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
@@ -360,6 +361,7 @@ export const TextBox: React.FC<TextBoxProps> = ({
 
   return (
     <div
+      {...rest}
       style={{
         ...widthStyle,
         position: 'relative',
@@ -557,7 +559,7 @@ export const TextBox: React.FC<TextBoxProps> = ({
                 outline: 'none',
                 backgroundColor: 'transparent',
                 padding: config.padding,
-                paddingBottom: hintTextPosition === 'inset' && hintText && size !== 'small' ? '14px' : config.padding,
+                paddingBottom: hintTextPosition === 'inset' && hintText && size !== 'small' ? '14px' : undefined,
                 fontSize: config.fontSize,
                 color: disabled ? theme.text.disabled : theme.text.primary,
                 cursor: disabled ? 'not-allowed' : readonly ? 'default' : 'text',
@@ -584,7 +586,7 @@ export const TextBox: React.FC<TextBoxProps> = ({
                 outline: 'none',
                 backgroundColor: 'transparent',
                 padding: config.padding,
-                paddingBottom: hintTextPosition === 'inset' && hintText && size !== 'small' ? '14px' : config.padding,
+                paddingBottom: hintTextPosition === 'inset' && hintText && size !== 'small' ? '14px' : undefined,
                 fontSize: config.fontSize,
                 color: disabled ? theme.text.disabled : theme.text.primary,
                 cursor: disabled ? 'not-allowed' : readonly ? 'default' : 'text',

@@ -62,7 +62,8 @@ export const Button: React.FC<ButtonProps> = ({
   title,
   fullWidth = false,
   minWidth,
-  style
+  style,
+  ...rest
 }) => {
   const { theme } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
@@ -251,6 +252,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
+      {...rest}
       type={htmlType}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
