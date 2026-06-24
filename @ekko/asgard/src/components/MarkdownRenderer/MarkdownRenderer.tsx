@@ -8,6 +8,7 @@ import { useTheme } from '../../theme';
 import type { MarkdownRendererProps, MarkdownRendererSize, MarkdownNode, InlineNode, ListItemNode } from './types';
 import { parseMarkdown } from './markdownParser';
 import { SyntaxColor } from '../SyntaxColor/SyntaxColor';
+import { Terminal } from '../Terminal/Terminal';
 import { ImageLightbox } from './ImageLightbox';
 import {
   typescriptLanguage, javascriptLanguage, jsonLanguage, cssLanguage, scssLanguage, htmlLanguage,
@@ -265,6 +266,16 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
       case 'code_block': {
         const lang = node.language.toLowerCase();
+
+        // ```ansi / ```terminal / ```console → render captured terminal output as a styled frame.
+        if (lang === 'ansi' || lang === 'terminal' || lang === 'console') {
+          return (
+            <div key={key} style={{ marginBottom: spacing }}>
+              <Terminal content={node.code} />
+            </div>
+          );
+        }
+
         const monarchLang = languageMap[lang];
 
         if (syntaxHighlight && monarchLang) {

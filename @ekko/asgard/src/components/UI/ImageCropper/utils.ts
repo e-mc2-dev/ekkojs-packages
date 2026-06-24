@@ -27,7 +27,10 @@ export async function loadImage(src: string | File | HTMLImageElement): Promise<
 
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous'; // Enable CORS for canvas export
+    // crossOrigin lets us canvas-export a REMOTE image, but setting it on a data:/blob: URL makes some
+    // WebKit builds refuse to load the image (onerror) — and the Upload preview IS a data: URL, which is
+    // why the cropper rendered empty. Only set it for http(s) sources; same-origin/data/blob don't need it.
+    if (typeof src === 'string' && /^https?:/i.test(src)) img.crossOrigin = 'anonymous';
 
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('Failed to load image'));

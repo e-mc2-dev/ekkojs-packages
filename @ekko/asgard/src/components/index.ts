@@ -93,6 +93,7 @@ export { Typography } from './Typography/Typography';
 export * from './Upload/index';
 export * from './UI/ImageCropper/index';
 export * from './SyntaxColor/index';
+export * from './Terminal/index';
 export { MarkdownRenderer, slugify, inlineText } from './MarkdownRenderer/index';
 export type { MarkdownRendererProps, MarkdownRendererSize, MarkdownNode, InlineNode, ListItemNode } from './MarkdownRenderer/index';
 export { parseMarkdown, parseInline } from './MarkdownRenderer/index';

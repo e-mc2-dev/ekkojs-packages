@@ -109,6 +109,14 @@ export interface DrawerProps {
   footer?: React.ReactNode;
 
   /**
+   * Padding of the scrollable content body.
+   * Set to 0 for full-bleed content that manages its own layout
+   * (e.g. a chat panel with its own header / scroll-area / input).
+   * @default 16
+   */
+  contentPadding?: number | string;
+
+  /**
    * Drawer content
    */
   children: React.ReactNode;
@@ -161,6 +169,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   headerSize = 'normal',
   header,
   footer,
+  contentPadding = 16,
   children,
   className,
   style,
@@ -366,13 +375,19 @@ export const Drawer: React.FC<DrawerProps> = ({
           </div>
         )}
 
-        {/* Content - Using SDiv for scrollability */}
+        {/* Content - Using SDiv for scrollability.
+            minHeight:0 is required: a flex child defaults to min-height:auto,
+            which would let tall content (e.g. a chat panel) grow past the drawer
+            and push the header/footer off-screen instead of scrolling. With
+            minHeight:0 the body resolves to a definite height, so it scrolls and
+            a height:100% child (chat) can fill it without overflowing. */}
         <SDiv
           scrollbarSize="normal"
           semantic={semantic}
           style={{
             flex: 1,
-            padding: 16,
+            minHeight: 0,
+            padding: contentPadding,
             overflow: 'auto'
           }}
         >

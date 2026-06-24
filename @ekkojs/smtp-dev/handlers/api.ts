@@ -23,7 +23,7 @@ export function listMessagesHandler(_req: any, res: any) {
   res.json({ messages, counts: store.counts() });
 }
 
-export function getMessageHandler(req: any, res: any) {
+export async function getMessageHandler(req: any, res: any) {
   const m = store.getMessage(req.params.id);
   if (!m) return res.status(404).json({ error: "Message not found" });
   store.markRead(req.params.id);
@@ -35,7 +35,7 @@ export function getMessageHandler(req: any, res: any) {
   });
 }
 
-export function deleteMessageHandler(req: any, res: any) {
+export async function deleteMessageHandler(req: any, res: any) {
   store.deleteMessage(req.params.id);
   res.json({ ok: true });
 }
@@ -45,7 +45,7 @@ export function clearAllHandler(_req: any, res: any) {
   res.json({ ok: true });
 }
 
-export function downloadAttachmentHandler(req: any, res: any) {
+export async function downloadAttachmentHandler(req: any, res: any) {
   const a = store.getAttachment(req.params.id);
   if (!a) return res.status(404).json({ error: "Attachment not found" });
   let bytes: Uint8Array;
@@ -58,7 +58,7 @@ export function downloadAttachmentHandler(req: any, res: any) {
 }
 
 export async function sendHandler(req: any, res: any) {
-  const body = req.json() || {};
+  const body = (await req.json().catch(() => ({}))) || {};
   if (!body.from || !body.to) return res.status(400).json({ error: "from and to are required" });
   try {
     await store.sendMessage({
@@ -73,8 +73,8 @@ export async function sendHandler(req: any, res: any) {
 
 export function statusHandler(_req: any, res: any) { res.json(store.smtpStatus()); }
 
-export function controlHandler(req: any, res: any) {
-  const body = req.json() || {};
+export async function controlHandler(req: any, res: any) {
+  const body = (await req.json().catch(() => ({}))) || {};
   switch (body.action) {
     case "stop": store.stopSmtp(); break;
     case "start": { const r = store.startSmtp(); if (!r.ok) return res.status(500).json(r); break; }
@@ -95,8 +95,8 @@ export function getSettingsHandler(_req: any, res: any) {
   });
 }
 
-export function setSettingsHandler(req: any, res: any) {
-  const body = req.json() || {};
+export async function setSettingsHandler(req: any, res: any) {
+  const body = (await req.json().catch(() => ({}))) || {};
   for (const k of ["smtp_host", "smtp_port", "smtp_ssl", "banner"]) {
     if (body[k] !== undefined) setSetting(k, String(body[k]));
   }
